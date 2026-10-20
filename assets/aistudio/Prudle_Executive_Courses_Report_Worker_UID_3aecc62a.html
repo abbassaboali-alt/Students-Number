@@ -1,0 +1,1834 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<script>
+(function(){
+"use strict";
+const LOGIN="https://www.prudle-education.com/log-in-out";
+const HOSTS=new Set(["www.prudle-education.com","prudle-education.com","abbassaboali-alt.github.io"]);
+window.addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="s")e.preventDefault()},true);
+if(location.protocol!=="https:"||!HOSTS.has(location.hostname.toLowerCase())){
+  window.stop(); location.replace(LOGIN); return;
+}
+const token=sessionStorage.getItem("firebaseToken");
+const uid=sessionStorage.getItem("firebaseUid");
+const started=Number(sessionStorage.getItem("prudleDeviceSessionStartedAt")||localStorage.getItem("prudleDeviceSessionStartedAt")||0);
+const expired=started>0&&Date.now()-started>=86400000;
+if(!token||!uid||expired){
+  location.replace(LOGIN); return;
+}
+window.PRUDLE_AUTH={token,uid,started};
+})();
+</script>
+<style>html:not(.prudle-authorized) body{visibility:hidden!important}html.prudle-authorized body{visibility:visible!important}</style>
+
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<title>تقرير الدورات التنفيذي - Prudle</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap" rel="stylesheet" />
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet" />
+
+<!-- Firebase -->
+<!-- PDF -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.29/jspdf.plugin.autotable.min.js"></script>
+
+<style>
+/* ===============================
+   EXECUTIVE DESIGN + FULL GRID
+=============================== */
+body{margin:0;background:#eef2f7;font-family:'Tajawal',sans-serif}
+
+header{
+  background:linear-gradient(135deg,#0f3057,#164478);
+  color:#fff;
+  padding:25px;
+  text-align:center;
+  font-size:22px;
+  font-weight:900;
+}
+
+.counter{
+  margin-top:10px;
+  background:#ffffff22;
+  padding:7px 18px;
+  border-radius:30px;
+  display:inline-block;
+  font-weight:800;
+}
+
+/* ===== Filters ===== */
+.filterRow{
+  margin:20px auto;
+  width:92%;
+  background:#fff;
+  padding:18px;
+  border-radius:12px;
+  box-shadow:0 4px 14px rgba(0,0,0,.08);
+  display:flex;
+  gap:12px;
+  flex-wrap:wrap;
+  justify-content:center;
+}
+
+select{
+  padding:10px;
+  border-radius:10px;
+  border:1px solid #d6dde8;
+  min-width:160px;
+  font-weight:600;
+  outline:none;
+}
+select:focus{
+  border-color:#164478;
+  box-shadow:0 0 0 3px rgba(22,68,120,.12);
+}
+
+.pdfBtn{
+  background:#0f3057;
+  color:#fff;
+  padding:10px 20px;
+  border:none;
+  border-radius:10px;
+  font-weight:900;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  box-shadow:0 4px 10px rgba(0,0,0,.14);
+}
+.pdfBtn:hover{background:#164478}
+
+.resetBtn{
+  background:#6c757d;
+  color:#fff;
+  padding:10px 18px;
+  border:none;
+  border-radius:10px;
+  font-weight:800;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  box-shadow:0 4px 10px rgba(0,0,0,.12);
+}
+.resetBtn:hover{background:#5a6268}
+
+.tableBox{
+  width:95%;
+  margin:20px auto 20px auto;
+  background:#fff;
+  border-radius:12px;
+  box-shadow:0 6px 18px rgba(0,0,0,.10);
+ overflow-x:auto !important;}
+
+/* ===== FULL GRID ===== */
+table{
+  width:100%;
+  border-collapse:collapse;
+  border:2px solid #0f3057;
+}
+th, td{
+  border:1px solid #cfd8e3;
+  padding:10px;
+  text-align:center;
+  font-size:13.5px;
+}
+th{
+  background:#0f3057;
+  color:#fff;
+  font-weight:900;
+  cursor:pointer;
+  user-select:none;
+  white-space:nowrap;
+}
+th i{margin-left:6px;font-size:12px;opacity:.95}
+
+/* ✅ Highlight Course column (now column 3) */
+td:nth-child(3){
+  background:#eaf1ff;
+  font-weight:900;
+  color:#0f3057;
+}
+
+/* ✅ Highlight Trainer column (now column 7) */
+td:nth-child(7){
+  background:#f0f6ff;
+  font-weight:900;
+  color:#164478;
+}
+
+/* ✅ Period column text BLACK (now column 8) */
+td:nth-child(8){
+  background:#dde6f2;
+  font-weight:900;
+  color:#000;
+}
+
+/* Students coloring */
+.st-low{background:#e74c3c !important;color:#fff !important;font-weight:900}
+.st-mid{background:#f1c40f !important;color:#000 !important;font-weight:900}
+.st-high{background:#27ae60 !important;color:#fff !important;font-weight:900}
+
+/* Period group row */
+.periodHeader{
+  background:#0f3057 !important;
+  color:#fff !important;
+  font-weight:900;
+}
+
+/* Zebra rows (skip group header) */
+tbody tr:nth-child(even):not(.periodHeader){background:#f9fbff}
+tbody tr:hover:not(.periodHeader){background:#eef4ff}
+
+.emptyMsg{
+  text-align:center;
+  color:#6b7786;
+  padding:18px;
+  font-weight:800;
+}
+
+/* ✅ Inline editable inputs */
+.autoInput{
+  width:100%;
+  border:none;
+  background:transparent;
+  text-align:center;
+  font-weight:800;
+  font-size:13px;
+  outline:none;
+  padding:4px 6px;
+}
+.autoInput:focus{
+  background:#fff8dc;
+  border-radius:8px;
+}
+.savingHint{
+  position:fixed;
+  bottom:14px;
+  left:14px;
+  background:#0f3057;
+  color:#fff;
+  padding:8px 12px;
+  border-radius:12px;
+  font-weight:800;
+  font-size:12px;
+  box-shadow:0 10px 22px rgba(0,0,0,.18);
+  display:none;
+  z-index:999999;
+}
+.pdf-period-header td{
+  background:#0f3057 !important;
+  color:#fff !important;
+  font-size:11px !important;
+  font-weight:900 !important;
+  text-align:center !important;
+  padding:7px !important;
+  border:1px solid #0f3057 !important;
+}
+.period-col{
+  background:#dde6f2;
+  color:#000;
+  font-weight:900;
+}
+</style>
+</head>
+
+<body>
+
+<div class="savingHint" id="savingHint"><i class="fa-solid fa-cloud-arrow-up"></i> Saving...</div>
+
+<header>
+  Prudle – Executive Courses Report
+  <div class="counter" id="studentsCounter">Total Students: 0</div>
+</header>
+
+<!-- FILTERS -->
+<div class="filterRow">
+<button class="pdfBtn" onclick="showAllActiveCourses()">
+  <i class="fa-solid fa-layer-group"></i>
+  Active Courses
+</button>
+  <select id="branch"><option value="">Branch</option></select>
+
+  <select id="section">
+    <option value="">Section</option>
+    <option value="Kids+Women">Kids + Women</option>
+    <option value="Women">Women</option>
+    <option value="Kids">Kids</option>
+    <option value="Men">Men</option>
+  </select>
+
+  <select id="trainer"><option value="">Trainer</option></select>
+  <select id="course"><option value="">Course</option></select>
+<select id="courseType">
+  <option value="">Type</option>
+  <option value="online">Online</option>
+  <option value="inperson">In Person</option>
+</select>
+
+  <select id="period"><option value="">Period</option></select>
+  <select id="date"><option value="">Start Date</option></select>
+
+  <button class="pdfBtn" onclick="exportPDF()"><i class="fa-solid fa-file-pdf"></i> PDF</button>
+  <button class="resetBtn" onclick="resetFilters()"><i class="fa-solid fa-rotate-left"></i> Reset</button>
+</div>
+
+<!-- TABLE -->
+<div class="tableBox">
+  <div class="emptyMsg" id="emptyMsg">Please select at least one filter to display data</div>
+
+  <table>
+    <thead>
+      <tr>
+        <th onclick="sortTable('CourseNumber')">Course No <i id="s-CourseNumber"></i></th>
+        <th onclick="sortTable('ApprovalNumber')">Approval No <i id="s-ApprovalNumber"></i></th>
+        <th onclick="sortTable('TrainingCourse')">Course <i id="s-TrainingCourse"></i></th>
+        <th onclick="sortTable('Room')">Room <i id="s-Room"></i></th>
+        <th onclick="sortTable('Branch')">Branch <i id="s-Branch"></i></th>
+        <th onclick="sortTable('Section')">Section <i id="s-Section"></i></th>
+<th onclick="sortTable('CourseType')">
+  Type
+  <i id="s-CourseType"></i>
+</th>
+        <th onclick="sortTable('Trainer')">Trainer <i id="s-Trainer"></i></th>
+        <th onclick="sortTable('Period')">Period <i id="s-Period"></i></th>
+        <th onclick="sortTable('Note')">Note <i id="s-Note"></i></th>
+        <th onclick="sortTable('StartingDate')">Start <i id="s-StartingDate"></i></th>
+        <th onclick="sortTable('EndingDate')">End <i id="s-EndingDate"></i></th>
+        <th onclick="sortTable('students')">Students <i id="s-students"></i></th>
+      </tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+</div>
+
+<!-- SUMMARY (BOTTOM) -->
+<div id="summaryBox" style="
+  width:95%;
+  margin:0 auto 40px auto;
+  background:#ffffff;
+  border-radius:12px;
+  box-shadow:0 6px 18px rgba(0,0,0,.08);
+  padding:20px;
+  font-weight:800;
+  display:none;
+">
+  <div style="font-size:16px;color:#0f3057;margin-bottom:10px">
+    Executive Summary
+  </div>
+  <div id="summaryContent" style="
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+    gap:10px;
+    font-size:14px;
+    color:#333;
+  "></div>
+</div>
+
+<script>
+/* Worker-only data access, authenticated at bootstrap */
+
+/* ================= LOGO (TOP + WATERMARK) =================
+   ملاحظة: إذا واجهت CORS مع الرابط، استبدله بـ Base64 DataURL (PNG) وستعمل 100%.
+*/
+const LOGO_URL = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRlEGHcXcelOlihtrBLFCmjumIyuBxqyoWEZM8DgDpBVg&s";
+let LOGO_DATA_URL = null;
+
+/* تحميل الشعار مرة واحدة (مع fallback) */
+function loadLogo(){
+  return new Promise((resolve)=>{
+    if(LOGO_DATA_URL) return resolve(LOGO_DATA_URL);
+
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = ()=>{
+      try{
+        const c = document.createElement("canvas");
+        c.width = img.naturalWidth || 600;
+        c.height = img.naturalHeight || 300;
+        const ctx = c.getContext("2d");
+        ctx.drawImage(img,0,0);
+        LOGO_DATA_URL = c.toDataURL("image/png");
+        resolve(LOGO_DATA_URL);
+      }catch(e){
+        resolve(null);
+      }
+    };
+    img.onerror = ()=>resolve(null);
+    img.src = LOGO_URL;
+  });
+}
+
+
+const PRUDLE_WORKER="https://api-prudle.abbassaboali.workers.dev";
+function authRedirect(){location.replace("https://www.prudle-education.com/log-in-out");}
+function currentToken(){
+  const a=window.PRUDLE_AUTH;
+  if(!a||!a.token||!a.uid){authRedirect();throw Error("No session");}
+  if(a.started&&Date.now()-a.started>=86400000){authRedirect();throw Error("Session expired");}
+  return a.token;
+}
+async function workerDb(payload){
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),20000);
+  let response;
+  try{
+    response=await fetch(PRUDLE_WORKER+"/db",{
+      method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+currentToken()},
+      body:JSON.stringify(payload),signal:controller.signal
+    });
+  }finally{clearTimeout(timeout);}
+  if(response.status===401){authRedirect();throw Error("Authentication expired");}
+  if(response.status===403)throw Error("Access denied by Worker");
+  if(!response.ok)throw Error("Worker HTTP "+response.status);
+  const result=await response.json();
+  if(result?.success===false||result?.error)throw Error(String(result?.error?.message||result?.error||"Worker error"));
+  return result;
+}
+function docList(response){
+  const data=response?.data??response;
+  const items=data?.documents??data?.docs??data?.results;
+  if(!Array.isArray(items))throw Error("Unverified Worker query response shape");
+  return {items,data};
+}
+function normalizeDoc(d){
+  const id=d.id||d.documentId||d.name?.split("/").pop();
+  if(!id)throw Error("Missing document ID");
+  const data=d.data||d.fields;
+  if(!data||typeof data!=="object")throw Error("Missing document data");
+  return {id,...data};
+}
+async function readAll(collection,filters=[]){
+  const output=[],seen=new Set();
+  let cursor=null;
+  for(let page=0;page<1000;page++){
+    const request={action:"query",collection,filters,limit:250,paginate:true};
+    if(cursor)request.cursor=cursor;
+    const response=await workerDb(request);
+    const {items,data}=docList(response);
+    for(const d of items){
+      const obj=normalizeDoc(d);
+      if(seen.has(obj.id))throw Error("Repeated document during pagination");
+      seen.add(obj.id);output.push(obj);
+    }
+    const next=data.nextCursor??data.cursor??response.nextCursor;
+    const hasMore=data.hasMore??response.hasMore;
+    if(hasMore===false)return output;
+    if(items.length<250&&!next)return output;
+    if(!next||next===cursor)throw Error("Pagination unsupported or incomplete: "+collection);
+    cursor=next;
+  }
+  throw Error("Pagination safety limit reached");
+}
+async function authorizeAdmin(){
+  const uid=window.PRUDLE_AUTH?.uid;
+  const users=await readAll("USERS",[["authUid","==",uid]]);
+  const record=users.find(x=>x.authUid===uid);
+  if(!record||String(record.role||"").toLowerCase()!=="admin")throw Error("Admin authorization not confirmed");
+}
+async function updateCourse(id,field,value){
+  if(!["CourseNumber","ApprovalNumber","Note"].includes(field))throw Error("Field not permitted");
+  return workerDb({action:"updateDoc",path:"Courses/"+id,data:{[field]:value}});
+}
+let pollHandle=null;
+async function reloadReport(){
+  const [courses,students]=await Promise.all([readAll("Courses"),readAll("students")]);
+  const counts={};
+  for(const st of students)if(st.courseId)counts[st.courseId]=(counts[st.courseId]||0)+1;
+  COURSES=courses;STUDENT_COUNT=counts;
+  const sig=getFiltersSignature();
+  if(sig!==FILTERS_SIGNATURE){FILTERS_SIGNATURE=sig;fillFilters();}
+  render();
+}
+function reportError(e){
+  console.error("Prudle report:",e);
+  document.documentElement.classList.remove("prudle-authorized");
+  const old=document.getElementById("prudleConnectionError");if(old)old.remove();
+  const el=document.createElement("div");
+  el.id="prudleConnectionError";
+  el.style.cssText="position:fixed;inset:0;background:#f4f7fb;z-index:999999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:15px;font-family:Arial;text-align:center;padding:24px";
+  const msg=document.createElement("strong");msg.textContent="تعذر التحقق من الصلاحية أو تحميل التقرير. لم يتم عرض أي بيانات.";
+  const btn=document.createElement("button");btn.textContent="إعادة المحاولة";btn.onclick=()=>location.reload();
+  el.append(msg,btn);document.body.append(el);
+  document.documentElement.classList.add("prudle-authorized");
+}
+
+/* ================= DATA ================= */
+let COURSES = [];
+let STUDENT_COUNT = {};
+let FILTERED = [];
+let SORT = { key: null, dir: 1 };
+let ACTIVE_MODE = false;
+ // dir 1 asc, -1 desc
+
+/* تحسينات الأداء */
+let renderTimer = null;
+let DATE_CACHE = [];
+let FILTERS_SIGNATURE = "";
+
+/* ================= HELPERS ================= */
+function formatDate(d){
+  if(!d) return "-";
+  try{
+    const dt = (d.seconds) ? new Date(d.seconds*1000) : new Date(d);
+    if(isNaN(dt.getTime())) return "-";
+    return dt.toISOString().split("T")[0];
+  }catch(e){
+    return "-";
+  }
+}
+function uniq(arr){
+  return [...new Set((arr||[]).filter(v=>v!==undefined && v!==null && (""+v).trim()!==""))];
+}
+function safeStr(v){
+  return (v===undefined || v===null) ? "" : (""+v);
+}
+function normalizeSortVal(v){
+  if(v===undefined || v===null) return "";
+  if(v && typeof v === "object" && v.seconds) return v.seconds;
+  return (""+v).toLowerCase();
+}
+function iconFor(dir){ return dir===1 ? "fa fa-sort-up" : "fa fa-sort-down"; }
+
+function getFiltersSignature(){
+  const branches = uniq(COURSES.map(x=>safeStr(x.Branch))).sort().join("|");
+  const trainers = uniq(COURSES.map(x=>safeStr(x.Trainer))).sort().join("|");
+  const courses  = uniq(COURSES.map(x=>safeStr(x.TrainingCourse))).sort().join("|");
+  const periods  = uniq(COURSES.map(x=>safeStr(x.Period))).sort().join("|");
+  const dates    = uniq(COURSES.map(x=>formatDate(x.StartingDate))).sort().join("|");
+  return [branches, trainers, courses, periods, dates].join("###");
+}
+
+/* ================= AUTO SAVE (DEBOUNCE) ================= */
+const saveTimers = {};
+function showSaving(flag){
+  const el = document.getElementById("savingHint");
+  if(!el) return;
+  el.style.display = flag ? "block" : "none";
+}
+function autoSave(courseId, field, value){
+  const key = courseId + "_" + field;
+  if(saveTimers[key]) clearTimeout(saveTimers[key]);
+
+  showSaving(true);
+
+  saveTimers[key] = setTimeout(async ()=>{
+    try{
+      await updateCourse(courseId,field,value);
+    }catch(err){
+      console.error("AutoSave error:", err);
+      alert("Error saving. Check console.");
+    }finally{
+      showSaving(false);
+    }
+  }, 600);
+}
+
+/* ================= LOAD ================= */
+(async function init(){
+  try{
+    if(!window.PRUDLE_AUTH)return;
+    await authorizeAdmin();
+    await reloadReport();
+    loadLogo();
+    document.querySelectorAll(".filterRow select").forEach(s=>{
+      s.addEventListener("change",()=>{clearTimeout(renderTimer);renderTimer=setTimeout(render,120)});
+    });
+    document.documentElement.classList.add("prudle-authorized");
+    // Periodic refresh is not equivalent to Firestore onSnapshot.
+    pollHandle=setInterval(()=>{if(!document.hidden)reloadReport().catch(e=>console.error("Refresh failed:",e))},30000);
+  }catch(e){reportError(e);}
+})();
+/* ================= FILTERS FILL ================= */
+function fillFilters(){
+  if(!window.branch) return;
+
+  const b = branch.value;
+  const s = section.value;
+  const t = trainer.value;
+  const c = course.value;
+  const p = period.value;
+  const d = date.value;
+
+  const branchOptions = ['<option value="">Branch</option>'];
+  const trainerOptions = ['<option value="">Trainer</option>'];
+  const courseOptions = ['<option value="">Course</option>'];
+  const periodOptions = ['<option value="">Period</option>'];
+  const dateOptions = ['<option value="">Start Date</option>'];
+
+  uniq(COURSES.map(x=>x.Branch)).forEach(v=>{
+    branchOptions.push(`<option value="${safeStr(v)}">${safeStr(v)}</option>`);
+  });
+
+  uniq(COURSES.map(x=>x.Trainer)).forEach(v=>{
+    trainerOptions.push(`<option value="${safeStr(v)}">${safeStr(v)}</option>`);
+  });
+
+  uniq(COURSES.map(x=>x.TrainingCourse)).forEach(v=>{
+    courseOptions.push(`<option value="${safeStr(v)}">${safeStr(v)}</option>`);
+  });
+
+  uniq(COURSES.map(x=>x.Period)).forEach(v=>{
+    periodOptions.push(`<option value="${safeStr(v)}">${safeStr(v)}</option>`);
+  });
+
+  /* ===== فلتر التاريخ مع تمييز آخر 5 ===== */
+  DATE_CACHE = uniq(COURSES.map(x=>formatDate(x.StartingDate)));
+
+  const sortedDates = DATE_CACHE
+    .map(val => ({
+      text: val,
+      value: new Date(val).getTime()
+    }))
+    .filter(item => item.text !== "-" && !isNaN(item.value))
+    .sort((a,b)=>b.value - a.value);
+
+  const latest5 = sortedDates.slice(0,5).map(item=>item.text);
+
+  sortedDates.forEach(item=>{
+    const isRecent = latest5.includes(item.text);
+
+    dateOptions.push(`
+      <option value="${item.text}" style="${isRecent ? 'color:#27ae60;font-weight:900;' : ''}">
+        ${isRecent ? '□ ' : ''}${item.text}
+      </option>
+    `);
+  });
+
+  branch.innerHTML = branchOptions.join("");
+  trainer.innerHTML = trainerOptions.join("");
+  course.innerHTML = courseOptions.join("");
+  period.innerHTML = periodOptions.join("");
+  date.innerHTML = dateOptions.join("");
+
+  branch.value = b;
+  section.value = s;
+  trainer.value = t;
+  course.value = c;
+  period.value = p;
+  date.value = d;
+}
+
+function resetFilters(){
+  branch.value="";
+  section.value="";
+  trainer.value="";
+  course.value="";
+courseType.value="";
+  period.value="";
+  date.value="";
+  SORT = { key:null, dir:1 };
+ACTIVE_MODE = false;
+  document.querySelectorAll("th i").forEach(i=>i.className="");
+  render();
+}
+function showAllActiveCourses(){
+
+  // ✅ إلغاء كل الفلاتر
+  branch.value = "";
+  section.value = "";
+  trainer.value = "";
+  course.value = "";
+  period.value = "";
+  date.value = "";
+
+  // ✅ عرض كل الدورات
+ACTIVE_MODE = true;
+  FILTERED = COURSES.filter(c=>{
+
+    const status = String(c.status || "")
+      .trim()
+      .toLowerCase();
+
+const isOpen =
+  status === "open" ||
+  status === "مفتوح";
+
+if(!isOpen) return false;
+
+// ✅ فلترة النوع
+if(courseType.value){
+
+  const type = String(c.CourseType || "")
+    .trim()
+    .toLowerCase();
+
+  const isOnline =
+    type.includes("online") ||
+    type.includes("اونلاين") ||
+    type.includes("zoom") ||
+    type.includes("virtual");
+
+  // ✅ Online
+  if(courseType.value === "online" && !isOnline){
+    return false;
+  }
+
+  // ✅ In Person
+  if(courseType.value === "inperson" && isOnline){
+    return false;
+  }
+
+}
+
+return true;
+  });
+
+  // ✅ تحديث الجدول
+  FILTERED = applySort(FILTERED);
+ACTIVE_MODE = true;
+render();
+updateSummary(
+  FILTERED.reduce((a,c)=>a+(STUDENT_COUNT[c.id]||0),0),
+  ["Active Courses"]
+);
+
+}
+function renderActiveCourses(){
+
+  rows.innerHTML = "";
+
+  if(FILTERED.length === 0){
+
+    emptyMsg.style.display = "block";
+    emptyMsg.innerText = "No active courses";
+
+    studentsCounter.innerText = "Total Students: 0";
+
+    return;
+  }
+
+  emptyMsg.style.display = "none";
+
+  let html = "";
+  let grandTotal = 0;
+
+  FILTERED.forEach(c=>{
+
+    const count = STUDENT_COUNT[c.id] || 0;
+
+    grandTotal += count;
+
+    const cls =
+      (count===0) ? "st-low" :
+      (count<10) ? "st-mid" :
+      "st-high";
+
+    html += `
+      <tr>
+
+<td>
+  <input
+    class="autoInput"
+    value="${safeStr(c.CourseNumber)}"
+    oninput="autoSave('${c.id}','CourseNumber',this.value)"
+    placeholder="Course No"
+  />
+</td>
+
+<td>
+  <input
+    class="autoInput"
+    value="${safeStr(c.ApprovalNumber)}"
+    oninput="autoSave('${c.id}','ApprovalNumber',this.value)"
+    placeholder="Approval No"
+  />
+</td>        <td>${safeStr(c.TrainingCourse) || "-"}</td>
+        <td>${safeStr(c.Room) || "-"}</td>
+        <td>${safeStr(c.Branch) || "-"}</td>
+<td>${safeStr(c.Section) || "-"}</td>
+
+<td>
+  ${
+    (() => {
+      const type = String(c.CourseType || "")
+        .trim()
+        .toLowerCase();
+
+      return (
+        type.includes("online") ||
+        type.includes("اون") ||
+        type.includes("zoom") ||
+        type.includes("virtual")
+      )
+        ? "Online"
+        : "In Person";
+    })()
+  }
+</td>
+<td>${safeStr(c.Trainer) || "-"}</td>        <td>${safeStr(c.Period) || "-"}</td>
+        <td>${safeStr(c.Note) || "-"}</td>
+        <td>${formatDate(c.StartingDate)}</td>
+        <td>${formatDate(c.EndingDate)}</td>
+
+        <td class="${cls}">
+          ${count}
+        </td>
+
+      </tr>
+    `;
+
+  });
+
+  rows.innerHTML = html;
+
+  studentsCounter.innerText =
+    "Total Students: " + grandTotal;
+
+}
+
+/* ================= SORT ================= */
+function sortTable(key){
+
+  if(SORT.key === key){
+    SORT.dir *= -1;
+  }else{
+    SORT.key = key;
+    SORT.dir = 1;
+  }
+
+  document.querySelectorAll("th i").forEach(i=>{
+    i.className = "";
+  });
+
+  const icon = document.getElementById("s-" + key);
+  if(icon){
+    icon.className = iconFor(SORT.dir);
+  }
+
+  // ✅ إذا زر Active Courses شغال
+  if(ACTIVE_MODE === true){
+
+    FILTERED = applySort(FILTERED);
+
+    renderActiveCourses();
+
+    return;
+  }
+
+  // ✅ الوضع الطبيعي مع الفلاتر
+  render();
+
+}
+function applySort(list){
+  if(!SORT.key) return list;
+
+  const key = SORT.key;
+  const dir = SORT.dir;
+
+  return list.slice().sort((a,b)=>{
+    let x, y;
+
+    if(key === "students"){
+      x = STUDENT_COUNT[a.id] || 0;
+      y = STUDENT_COUNT[b.id] || 0;
+      return (x>y ? dir : x<y ? -dir : 0);
+    }
+
+    x = a[key];
+    y = b[key];
+
+    if(key === "StartingDate" || key === "EndingDate"){
+      const xs = (x && x.seconds) ? x.seconds : (x ? new Date(x).getTime()/1000 : 0);
+      const ys = (y && y.seconds) ? y.seconds : (y ? new Date(y).getTime()/1000 : 0);
+      return (xs>ys ? dir : xs<ys ? -dir : 0);
+    }
+
+    const xv = normalizeSortVal(x);
+    const yv = normalizeSortVal(y);
+    return (xv>yv ? dir : xv<yv ? -dir : 0);
+  });
+}
+
+/* ================= FILTER GATE ================= */
+function hasAnyFilter(){
+  return !!(
+    branch.value ||
+    section.value ||
+    trainer.value ||
+    course.value ||
+    courseType.value ||
+    period.value ||
+    date.value
+  );
+}
+/* ================= SUMMARY ================= */
+function updateSummary(grandTotal, periodKeys){
+  if((!hasAnyFilter() && !ACTIVE_MODE) || !FILTERED || FILTERED.length===0){
+    summaryBox.style.display="none";
+    return;
+  }
+
+  summaryBox.style.display="block";
+
+  const branches = uniq(FILTERED.map(c=>safeStr(c.Branch)));
+  const sections = uniq(FILTERED.map(c=>safeStr(c.Section)));
+  const starts   = uniq(FILTERED.map(c=>formatDate(c.StartingDate)).filter(v=>v!=="-"));
+  const ends     = uniq(FILTERED.map(c=>formatDate(c.EndingDate)).filter(v=>v!=="-"));
+
+  const branchTxt = branch.value || (branches.length ? branches.join(", ") : "All");
+  const sectionTxt = section.value || (sections.length ? sections.join(", ") : "All");
+
+  let startTxt = "Multiple";
+  let endTxt = "Multiple";
+
+  if(date.value){
+    startTxt = date.value;
+  }else if(starts.length===1){
+    startTxt = starts[0];
+  }else if(starts.length===0){
+    startTxt = "-";
+  }
+
+  if(ends.length===1){
+    endTxt = ends[0];
+  }else if(ends.length===0){
+    endTxt = "-";
+  }
+
+  summaryContent.innerHTML = `
+    <div>□ Branch: ${branchTxt}</div>
+    <div>□ Section: ${sectionTxt}</div>
+    <div>□ Courses: ${FILTERED.length}</div>
+    <div>□ Total Students: ${grandTotal}</div>
+    <div>□ Periods: ${periodKeys.length}</div>
+    <div>□ Start Date: ${startTxt}</div>
+    <div>□ End Date: ${endTxt}</div>
+  `;
+}
+
+function getLatest5Dates(list){
+  const dates = list
+    .map(c => {
+      if(!c.StartingDate) return null;
+      if(c.StartingDate.seconds) return c.StartingDate.seconds;
+      const t = new Date(c.StartingDate).getTime();
+      return isNaN(t) ? null : (t / 1000);
+    })
+    .filter(v => v !== null)
+    .sort((a,b) => b - a);
+
+  return dates.slice(0,5);
+}
+
+/* ================= RENDER ================= */
+function render(){
+
+  if(!rows) return;
+
+  rows.innerHTML = "";
+
+  // ✅ لا توجد فلاتر ولا Active
+  if(!hasAnyFilter() && !ACTIVE_MODE){
+
+    FILTERED = [];
+
+    studentsCounter.innerText = "Total Students: 0";
+
+    emptyMsg.style.display = "block";
+
+    emptyMsg.innerText =
+      "Please select at least one filter to display data";
+
+    summaryBox.style.display = "none";
+
+    return;
+  }
+
+  emptyMsg.style.display = "none";
+
+  /* ================= FILTER ================= */
+
+  FILTERED = COURSES.filter(c=>{
+
+    // ✅ Active Courses Mode
+    if(ACTIVE_MODE){
+
+      const status = String(c.status || "")
+        .trim()
+        .toLowerCase();
+
+      const isOpen =
+        status === "open" ||
+        status === "مفتوح";
+
+      if(!isOpen) return false;
+    }
+
+    // ===== Branch =====
+    if(branch.value &&
+       safeStr(c.Branch) !== branch.value){
+      return false;
+    }
+
+    // ===== Section =====
+    if(section.value){
+
+      if(section.value === "Kids+Women"){
+
+        if(
+          !(
+            safeStr(c.Section)==="Kids" ||
+            safeStr(c.Section)==="Women"
+          )
+        ){
+          return false;
+        }
+
+      }else{
+
+        if(
+          safeStr(c.Section) !== section.value
+        ){
+          return false;
+        }
+      }
+    }
+
+    // ===== Trainer =====
+    if(
+      trainer.value &&
+      safeStr(c.Trainer) !== trainer.value
+    ){
+      return false;
+    }
+
+    // ===== Course =====
+    if(
+      course.value &&
+      safeStr(c.TrainingCourse) !== course.value
+    ){
+      return false;
+    }
+
+    // ===== Period =====
+    if(
+      period.value &&
+      safeStr(c.Period) !== period.value
+    ){
+      return false;
+    }
+
+    // ===== Course Type =====
+    if(courseType.value){
+
+      const type = String(c.CourseType || "")
+        .trim()
+        .toLowerCase();
+
+      const isOnline =
+        type.includes("online") ||
+        type.includes("اونلاين") ||
+        type.includes("اون") ||
+        type.includes("zoom") ||
+        type.includes("virtual");
+
+      if(
+        courseType.value === "online" &&
+        !isOnline
+      ){
+        return false;
+      }
+
+      if(
+        courseType.value === "inperson" &&
+        isOnline
+      ){
+        return false;
+      }
+    }
+
+    // ===== Date =====
+    if(
+      date.value &&
+      formatDate(c.StartingDate) !== date.value
+    ){
+      return false;
+    }
+
+    return true;
+
+  });
+  const latestDates = getLatest5Dates(FILTERED);
+  const sorted = applySort(FILTERED);
+
+  const grouped = {};
+  sorted.forEach(c=>{
+    const p = safeStr(c.Period) || "No Period";
+    if(!grouped[p]) grouped[p] = [];
+    grouped[p].push(c);
+  });
+
+  let grandTotal = 0;
+  const periodKeys = Object.keys(grouped).sort((a,b)=>
+    a.localeCompare(b,undefined,{numeric:true,sensitivity:"base"})
+  );
+
+  if(periodKeys.length===0){
+    studentsCounter.innerText = "Total Students: 0";
+    emptyMsg.style.display = "block";
+    emptyMsg.innerText = "No results for current filters";
+    summaryBox.style.display="none";
+    return;
+  }
+
+  let html = "";
+
+  periodKeys.forEach(p=>{
+    const list = grouped[p];
+
+    let periodTotal = 0;
+    list.forEach(c=>periodTotal += (STUDENT_COUNT[c.id] || 0));
+    grandTotal += periodTotal;
+
+    html += `
+      <tr class="periodHeader">
+        <td colspan="13">${p} — Total Students: ${periodTotal}</td>
+      </tr>
+    `;
+
+    list.forEach(c=>{
+      const count = STUDENT_COUNT[c.id] || 0;
+      const cls = (count===0) ? "st-low" : (count<10) ? "st-mid" : "st-high";
+
+      const startRaw = c.StartingDate?.seconds
+        ? c.StartingDate.seconds
+        : (c.StartingDate ? new Date(c.StartingDate).getTime()/1000 : null);
+
+      const isRecent = startRaw && latestDates.some(d => Math.abs(d - startRaw) < 2);
+
+      html += `
+        <tr>
+          <td>
+            <input class="autoInput" value="${safeStr(c.CourseNumber)}"
+              oninput="autoSave('${c.id}','CourseNumber',this.value)" />
+          </td>
+
+          <td>
+            <input class="autoInput" value="${safeStr(c.ApprovalNumber)}"
+              oninput="autoSave('${c.id}','ApprovalNumber',this.value)" />
+          </td>
+
+          <td>${safeStr(c.TrainingCourse) || "-"}</td>
+          <td>${safeStr(c.Room) || "-"}</td>
+          <td>${safeStr(c.Branch) || "-"}</td>
+          <td>${safeStr(c.Section) || "-"}</td>
+
+          <td>
+            ${
+              (() => {
+                const type = String(c.CourseType || "").trim().toLowerCase();
+                return (
+                  type.includes("online") ||
+                  type.includes("اونلاين") ||
+                  type.includes("اون") ||
+                  type.includes("zoom") ||
+                  type.includes("virtual")
+                ) ? "Online" : "In Person";
+              })()
+            }
+          </td>
+
+          <td>${safeStr(c.Trainer) || "-"}</td>
+          <td>${safeStr(c.Period) || "-"}</td>
+
+          <td>
+            <input class="autoInput" value="${safeStr(c.Note)}"
+              oninput="autoSave('${c.id}','Note',this.value)" placeholder="Write note..." />
+          </td>
+
+          <td style="${isRecent ? 'background:#27ae60;color:#fff;font-weight:900' : ''}">
+            ${formatDate(c.StartingDate)}
+          </td>
+
+          <td>${formatDate(c.EndingDate)}</td>
+          <td class="${cls}">${count}</td>
+        </tr>
+      `;
+    });
+  });
+
+  rows.innerHTML = html;
+  studentsCounter.innerText = "Total Students: " + grandTotal;
+  updateSummary(grandTotal, periodKeys);
+}
+/* ===============================
+   استخراج النتائج حسب الفلترة الحالية
+================================ */
+function getCurrentFilteredCourses(){
+
+  return COURSES.filter(c=>{
+
+    /* الدورات النشطة فقط عند تشغيل Active Courses */
+    if(ACTIVE_MODE){
+
+      const status = String(c.status || "")
+        .trim()
+        .toLowerCase();
+
+      const isOpen =
+        status === "open" ||
+        status === "مفتوح";
+
+      if(!isOpen) return false;
+    }
+
+    /* الفرع */
+    if(
+      branch.value &&
+      safeStr(c.Branch) !== branch.value
+    ){
+      return false;
+    }
+
+    /* القسم */
+    if(section.value){
+
+      if(section.value === "Kids+Women"){
+
+        const currentSection =
+          safeStr(c.Section);
+
+        if(
+          currentSection !== "Kids" &&
+          currentSection !== "Women"
+        ){
+          return false;
+        }
+
+      }else if(
+        safeStr(c.Section) !== section.value
+      ){
+        return false;
+      }
+    }
+
+    /* المدرب */
+    if(
+      trainer.value &&
+      safeStr(c.Trainer) !== trainer.value
+    ){
+      return false;
+    }
+
+    /* الدورة */
+    if(
+      course.value &&
+      safeStr(c.TrainingCourse) !== course.value
+    ){
+      return false;
+    }
+
+    /* الفترة */
+    if(
+      period.value &&
+      safeStr(c.Period) !== period.value
+    ){
+      return false;
+    }
+
+    /* نوع الدورة */
+    if(courseType.value){
+
+      const type =
+        String(c.CourseType || "")
+          .trim()
+          .toLowerCase();
+
+      const isOnline =
+        type.includes("online") ||
+        type.includes("اونلاين") ||
+        type.includes("اون") ||
+        type.includes("zoom") ||
+        type.includes("virtual");
+
+      if(
+        courseType.value === "online" &&
+        !isOnline
+      ){
+        return false;
+      }
+
+      if(
+        courseType.value === "inperson" &&
+        isOnline
+      ){
+        return false;
+      }
+    }
+
+    /* تاريخ البداية */
+    if(
+      date.value &&
+      formatDate(c.StartingDate) !== date.value
+    ){
+      return false;
+    }
+
+    return true;
+  });
+}
+/* ================= PDF (TOP LOGO + WATERMARK LOGO) ================= */
+async function exportPDF(){
+
+  /*
+    تطبيق الفلترة الحالية لحظة الضغط على PDF
+  */
+  const currentFiltered =
+    getCurrentFilteredCourses();
+
+  if(
+    (!hasAnyFilter() && !ACTIVE_MODE) ||
+    currentFiltered.length === 0
+  ){
+    alert("لا توجد بيانات مطابقة للفلترة الحالية");
+    return;
+  }
+
+  /*
+    ترتيب نفس البيانات الظاهرة في الجدول
+  */
+  const sorted =
+    applySort(currentFiltered);
+
+  /*
+    نسخة النتائج المستخدمة في PDF
+  */
+  const pdfData =
+    sorted.slice();
+
+  const logoData =
+    await loadLogo();
+
+  /*
+    إظهار عمود الملاحظات فقط إذا كانت النتائج
+    المفلترة تحتوي على ملاحظات
+  */
+  const showNotes =
+    pdfData.some(c =>
+      safeStr(c.Note).trim() !== ""
+    );
+
+let grandTotal = 0;
+
+pdfData.forEach(c=>{
+  grandTotal += Number(
+    STUDENT_COUNT[c.id] || 0
+  );
+});
+
+const branches = uniq(
+  pdfData.map(c=>safeStr(c.Branch))
+).filter(Boolean).join("، ");
+
+const sections = uniq(
+  pdfData.map(c=>safeStr(c.Section))
+).filter(Boolean).join("، ");
+
+const trainers = uniq(
+  pdfData.map(c=>safeStr(c.Trainer))
+).filter(Boolean).join("، ");
+
+const courses = uniq(
+  pdfData.map(c=>safeStr(c.TrainingCourse))
+).filter(Boolean).join("، ");
+
+const periods = uniq(
+  pdfData.map(c=>safeStr(c.Period))
+).filter(Boolean).join("، ");
+
+const startDates = uniq(
+  pdfData
+    .map(c=>formatDate(c.StartingDate))
+    .filter(v=>v !== "-")
+).join("، ");
+
+const endDates = uniq(
+  pdfData
+    .map(c=>formatDate(c.EndingDate))
+    .filter(v=>v !== "-")
+).join("، ");
+
+  const typeText = (c)=>{
+    const type = String(c.CourseType || "").trim().toLowerCase();
+    const isOnline =
+      type.includes("online") ||
+      type.includes("اون") ||
+      type.includes("zoom") ||
+      type.includes("virtual");
+
+    return isOnline ? "أونلاين" : "حضوري";
+  };
+
+  const studentsClass = (count)=>{
+    if(count === 0) return "pdf-low";
+    if(count < 10) return "pdf-mid";
+    return "pdf-high";
+  };
+
+/* =====================================
+   ترتيب PDF مطابق تمامًا للجدول الظاهر
+===================================== */
+
+const pdfGrouped = {};
+
+pdfData.forEach(c=>{
+
+  const periodName =
+    safeStr(c.Period) || "No Period";
+
+  if(!pdfGrouped[periodName]){
+    pdfGrouped[periodName] = [];
+  }
+
+  pdfGrouped[periodName].push(c);
+});
+
+/*
+  نفس ترتيب الفترات المستخدم في الجدول
+*/
+const pdfPeriodKeys =
+  Object.keys(pdfGrouped).sort((a,b)=>
+    a.localeCompare(
+      b,
+      undefined,
+      {
+        numeric:true,
+        sensitivity:"base"
+      }
+    )
+  );
+
+let pdfRowNumber = 0;
+let rowsHTML = "";
+
+pdfPeriodKeys.forEach(periodName=>{
+
+  const periodCourses =
+    pdfGrouped[periodName];
+
+  let periodStudents = 0;
+
+  periodCourses.forEach(c=>{
+    periodStudents += Number(
+      STUDENT_COUNT[c.id] || 0
+    );
+  });
+
+  /*
+    صف عنوان الفترة مثل الجدول الظاهر
+  */
+  rowsHTML += `
+    <tr class="pdf-period-header">
+      <td colspan="${showNotes ? 14 : 13}">
+        ${periodName}
+        —
+        إجمالي الطلاب: ${periodStudents}
+      </td>
+    </tr>
+  `;
+
+  /*
+    ترتيب الدورات داخل الفترة
+    مطابق للفرز الحالي
+  */
+  periodCourses.forEach(c=>{
+
+    pdfRowNumber++;
+
+    const count = Number(
+      STUDENT_COUNT[c.id] || 0
+    );
+
+    rowsHTML += `
+      <tr>
+
+        <td>
+          ${pdfRowNumber}
+        </td>
+
+        <td>
+          ${safeStr(c.CourseNumber) || "-"}
+        </td>
+
+        <td>
+          ${safeStr(c.ApprovalNumber) || "-"}
+        </td>
+
+        <td class="course-col">
+          ${safeStr(c.TrainingCourse) || "-"}
+        </td>
+
+        <td>
+          ${safeStr(c.Room) || "-"}
+        </td>
+
+        <td>
+          ${safeStr(c.Branch) || "-"}
+        </td>
+
+        <td>
+          ${safeStr(c.Section) || "-"}
+        </td>
+
+        <td>
+          ${typeText(c)}
+        </td>
+
+        <td class="trainer-col">
+          ${safeStr(c.Trainer) || "-"}
+        </td>
+
+        <td class="period-col">
+          ${safeStr(c.Period) || "-"}
+        </td>
+
+        ${
+          showNotes
+            ? `
+              <td>
+                ${safeStr(c.Note) || "-"}
+              </td>
+            `
+            : ""
+        }
+
+        <td dir="ltr">
+          ${formatDate(c.StartingDate)}
+        </td>
+
+        <td dir="ltr">
+          ${formatDate(c.EndingDate)}
+        </td>
+
+        <td class="${studentsClass(count)}">
+          ${count}
+        </td>
+
+      </tr>
+    `;
+  });
+});
+
+  const notesHeader = showNotes ? "<th>ملاحظات</th>" : "";
+
+  const reportHTML = `
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>تقرير الدورات التنفيذي</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap" rel="stylesheet">
+
+<style>
+  @page{
+    size:A4 landscape;
+    margin:8mm;
+  }
+
+  *{
+    box-sizing:border-box;
+  }
+
+  body{
+    margin:0;
+    padding:0;
+    font-family:'Tajawal', Arial, sans-serif;
+    color:#10233f;
+    background:#fff;
+    direction:rtl;
+  }
+
+  .pdf-header{
+    background:#0f3057;
+    color:#fff;
+    padding:10px 14px;
+    border-radius:10px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+  }
+
+  .pdf-title{
+    flex:1;
+    text-align:center;
+    font-size:22px;
+    font-weight:900;
+  }
+
+  .pdf-logo{
+    width:74px;
+    height:48px;
+    object-fit:contain;
+    background:#fff;
+    border-radius:8px;
+    padding:4px;
+  }
+
+  .pdf-date{
+    font-size:11px;
+    font-weight:700;
+    min-width:160px;
+    text-align:left;
+    direction:ltr;
+  }
+
+  .summary{
+    margin-top:10px;
+    border:1px solid #d7dfec;
+    background:#f5f8fd;
+    border-radius:10px;
+    padding:10px;
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:8px;
+    font-size:12px;
+    font-weight:800;
+  }
+
+  .summary div{
+    background:#fff;
+    border:1px solid #e5ebf5;
+    border-radius:8px;
+    padding:7px;
+  }
+
+  .summary b{
+    color:#0f3057;
+  }
+
+  table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:10px;
+    table-layout:auto;
+    direction:rtl;
+  }
+
+  th,td{
+    border:1px solid #cfd8e3;
+    padding:5px 4px;
+    text-align:center;
+    font-size:9.5px;
+    font-weight:700;
+    vertical-align:middle;
+    word-break:break-word;
+  }
+
+  th{
+    background:#0f3057;
+    color:#fff;
+    font-size:9.5px;
+    font-weight:900;
+    white-space:nowrap;
+  }
+
+  .course-col{
+    background:#eaf1ff;
+    color:#0f3057;
+    font-weight:900;
+    min-width:90px;
+  }
+
+  .trainer-col{
+    background:#f0f6ff;
+    color:#164478;
+    font-weight:900;
+  }
+
+  .period-col{
+    background:#dde6f2;
+    color:#000;
+    font-weight:900;
+  }
+
+  .pdf-low{
+    background:#e74c3c;
+    color:#fff;
+    font-weight:900;
+  }
+
+  .pdf-mid{
+    background:#f1c40f;
+    color:#000;
+    font-weight:900;
+  }
+
+  .pdf-high{
+    background:#27ae60;
+    color:#fff;
+    font-weight:900;
+  }
+
+  .footer{
+    margin-top:8px;
+    text-align:center;
+    color:#6b7280;
+    font-size:10px;
+    font-weight:700;
+  }
+
+  @media print{
+    body{
+      -webkit-print-color-adjust:exact;
+      print-color-adjust:exact;
+    }
+
+    .no-print{
+      display:none !important;
+    }
+
+    table{
+      page-break-inside:auto;
+    }
+
+    tr{
+      page-break-inside:avoid;
+      page-break-after:auto;
+    }
+  }
+</style>
+</head>
+
+<body>
+
+  <div class="pdf-header">
+    ${logoData ? `<img class="pdf-logo" src="${logoData}">` : `<div style="width:74px"></div>`}
+    <div class="pdf-title">تقرير الدورات التنفيذي - معهد برودل</div>
+    <div class="pdf-date">${new Date().toLocaleString("en-US")}</div>
+  </div>
+
+<div class="summary">
+
+  <div>
+    <b>الفرع:</b>
+    ${branch.value || branches || "الكل"}
+  </div>
+
+  <div>
+    <b>القسم:</b>
+    ${section.value || sections || "الكل"}
+  </div>
+
+  <div>
+    <b>المدرب:</b>
+    ${trainer.value || trainers || "الكل"}
+  </div>
+
+  <div>
+    <b>الدورة:</b>
+    ${course.value || courses || "الكل"}
+  </div>
+
+  <div>
+    <b>الفترة:</b>
+    ${period.value || periods || "الكل"}
+  </div>
+
+  <div>
+    <b>نوع الدورة:</b>
+    ${
+      courseType.value === "online"
+        ? "Online"
+        : courseType.value === "inperson"
+          ? "In Person"
+          : "الكل"
+    }
+  </div>
+
+  <div>
+    <b>عدد الدورات:</b>
+    ${pdfData.length}
+  </div>
+
+  <div>
+    <b>إجمالي الطلاب:</b>
+    ${grandTotal}
+  </div>
+
+  <div>
+    <b>تاريخ البداية:</b>
+    <span dir="ltr">
+      ${date.value || startDates || "-"}
+    </span>
+  </div>
+
+  <div>
+    <b>تاريخ النهاية:</b>
+    <span dir="ltr">
+      ${endDates || "-"}
+    </span>
+  </div>
+
+  <div>
+    <b>نوع التقرير:</b>
+    ${ACTIVE_MODE ? "الدورات المفتوحة" : "حسب الفلترة"}
+  </div>
+
+  <div>
+    <b>النظام:</b>
+    Prudle Education System
+  </div>
+
+</div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>رقم الدورة</th>
+        <th>رقم الاعتماد</th>
+        <th>الدورة</th>
+        <th>القاعة</th>
+        <th>الفرع</th>
+        <th>القسم</th>
+        <th>النوع</th>
+        <th>المدرب</th>
+        <th>الفترة</th>
+        ${notesHeader}
+        <th>البداية</th>
+        <th>النهاية</th>
+        <th>الطلاب</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rowsHTML}
+    </tbody>
+  </table>
+
+  <div class="footer">
+    Prudle Education System — تم إنشاء التقرير تلقائياً
+  </div>
+
+  <script>
+    window.onload = function(){
+      setTimeout(function(){
+        window.print();
+      }, 500);
+    };
+  <\/script>
+
+</body>
+</html>
+  `;
+
+  const w = window.open("", "_blank");
+
+  if(!w){
+    alert("المتصفح منع فتح نافذة PDF. اسمح بالنوافذ المنبثقة ثم حاول مرة أخرى.");
+    return;
+  }
+
+  w.document.open();
+  w.document.write(reportHTML);
+  w.document.close();
+}
+</script>
+
+</body>
+</html>
+
