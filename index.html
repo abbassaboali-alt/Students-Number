@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>تقرير الدورات التنفيذي - Prudle</title>
+    <meta name="description" content="تقرير الدورات التنفيذي لمعهد برودل - Prudle Executive Courses Report" />
+    <meta property="og:title" content="تقرير الدورات التنفيذي - Prudle" />
+    <meta property="og:description" content="تقرير الدورات التنفيذي لمعهد برودل - Prudle Executive Courses Report" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- Google Fonts: Tajawal -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet" />
+
+    <!-- Font Awesome 6.5.0 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+
+    <!-- Direct Pre-Render Host and Session Gate -->
+    <script>
+      (function () {
+        "use strict";
+        const LOGIN = "https://www.prudle-education.com/log-in-out";
+        const HOSTS = new Set([
+          "www.prudle-education.com",
+          "prudle-education.com",
+          "abbassaboali-alt.github.io"
+        ]);
+
+        window.addEventListener("keydown", function (e) {
+          if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+            e.preventDefault();
+          }
+        }, true);
+
+        const host = window.location.hostname.toLowerCase();
+        const isLocalHost = host === "localhost" || host === "127.0.0.1";
+
+        if (!isLocalHost) {
+          if (window.location.protocol !== "https:" || !HOSTS.has(host)) {
+            try { window.stop(); } catch (_) {}
+            window.location.replace(LOGIN);
+            return;
+          }
+        }
+
+        const token = sessionStorage.getItem("firebaseToken") || localStorage.getItem("firebaseToken");
+        const uid = sessionStorage.getItem("firebaseUid") || localStorage.getItem("firebaseUid");
+        const rawStart = sessionStorage.getItem("prudleDeviceSessionStartedAt") || localStorage.getItem("prudleDeviceSessionStartedAt");
+        let started = 0;
+        if (rawStart) {
+          const num = Number(rawStart);
+          if (!isNaN(num) && num > 0) {
+            started = num < 1e11 ? num * 1000 : num;
+          } else {
+            const dt = Date.parse(rawStart);
+            if (!isNaN(dt)) started = dt;
+          }
+        }
+        const expired = started > 0 && (Date.now() - started >= 86400000);
+        if (!token || !uid || expired) {
+          try { window.stop(); } catch (_) {}
+          window.location.replace(LOGIN);
+          return;
+        }
+      })();
+    </script>
+    <script type="module" crossorigin src="./assets/index-jeNT4ecQ.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-BNrHnztq.css">
+  </head>
+  <body class="bg-[#eef2f7] text-[#10233f] font-['Tajawal',sans-serif]">
+    <div id="root"></div>
+  </body>
+</html>
