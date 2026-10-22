@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+  <head>
+    <script>
+      (function () {
+        const login = 'https://www.prudle-education.com/log-in-out';
+        const prodHosts = ['www.prudle-education.com', 'prudle-education.com', 'abbassaboali-alt.github.io'];
+        const currentHost = location.hostname.toLowerCase();
+        
+        // Prevent accidental save shortcuts
+        window.addEventListener(
+          'keydown',
+          (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+              e.preventDefault();
+            }
+          },
+          { capture: true }
+        );
+
+        // Host security guard for production domains
+        const isProdDomain = prodHosts.includes(currentHost);
+        const isDevHost = currentHost === 'localhost' || currentHost === '127.0.0.1' || currentHost.endsWith('.run.app') || currentHost.endsWith('.webcontainer.io');
+
+        if (!isDevHost && (!isProdDomain || location.protocol !== 'https:')) {
+          location.replace(login);
+        }
+      })();
+    </script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Prudle – Executive Courses Report</title>
+    <meta name="description" content="Executive courses report dashboard with bilingual English/Arabic interface, real-time Cloudflare Worker data integration, inline course editing, period groupings, executive summary, and PDF export." />
+    <meta property="og:title" content="Prudle – Executive Courses Report" />
+    <meta property="og:description" content="Executive courses report dashboard with bilingual English/Arabic interface, real-time Cloudflare Worker data integration, inline course editing, period groupings, executive summary, and PDF export." />
+    <meta property="og:type" content="website" />
+
+    <!-- Google Font: Tajawal -->
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap" rel="stylesheet" />
+
+    <!-- Font Awesome 6.5.0 -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet" />
+    <script type="module" crossorigin src="./assets/index-CnpQCGar.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-DkWtPABq.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
